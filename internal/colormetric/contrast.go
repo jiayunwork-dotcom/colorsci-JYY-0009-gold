@@ -1,6 +1,8 @@
 package colormetric
 
 import (
+	"math"
+
 	"colorsci/internal/colorconv"
 	"colorsci/internal/colorparse"
 )
@@ -74,7 +76,7 @@ func BestPair(foreground, background []colorparse.Color) (colorparse.Color, colo
 		}
 	}
 	if best < 0 {
-		return colorparse.Color{}, colorparse.Color{}, 0
+		return colorparse.Color{}, colorparse.Color{}, math.Inf(-1)
 	}
 	return bf, bb, best
 }
