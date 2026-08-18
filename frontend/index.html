@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>色彩科学工具</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background: #f8f9fa; }
+        h1 { color: #333; }
+        h3 { color: #555; margin-top: 0; }
+        .card { background: white; border-radius: 8px; padding: 20px; margin: 16px 0; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        label { display: block; margin: 8px 0 4px; font-weight: 600; }
+        input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #6c5ce7; color: white; border: none; padding: 10px 18px; border-radius: 4px; cursor: pointer; margin: 4px; }
+        button:hover { background: #5a4bd1; }
+        .swatch { display: inline-block; width: 60px; height: 60px; border-radius: 4px; border: 1px solid #ddd; margin: 4px; vertical-align: middle; }
+        .palette { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .palette .swatch { width: 50px; height: 50px; }
+        .result { margin-top: 12px; padding: 12px; background: #f1f3f5; border-radius: 4px; font-family: monospace; font-size: 13px; }
+        .row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+        .error { color: #e74c3c; }
+        .delta-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: bold; margin: 2px; }
+    </style>
+</head>
+<body>
+    <h1>色彩科学 (Color Science)</h1>
+
+    <!-- 色彩转换 -->
+    <div class="card">
+        <h3>颜色转换</h3>
+        <div class="row">
+            <div><label>输入颜色</label><input id="convertInput" type="text" value="#3498db" size="12"></div>
+            <div><input id="colorPicker" type="color" value="#3498db" onchange="document.getElementById('convertInput').value=this.value"></div>
+            <button onclick="doConvert()">转换</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+            <div class="swatch" id="convertSwatch"></div>
+            <div class="result" id="convertResult" style="flex:1"></div>
+        </div>
+    </div>
+
+    <!-- 色差计算 -->
+    <div class="card">
+        <h3>色差计算 (ΔE)</h3>
+        <div class="row">
+            <div><label>颜色 1</label><input id="delta1" value="#ff6b6b" size="10"></div>
+            <div><label>颜色 2</label><input id="delta2" value="#48dbfb" size="10"></div>
+            <button onclick="doDelta()">计算色差</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+            <div class="swatch" id="deltaSwatch1"></div>
+            <div class="swatch" id="deltaSwatch2"></div>
+        </div>
+        <div class="result" id="deltaResult"></div>
+    </div>
+
+    <!-- 调色板生成 -->
+    <div class="card">
+        <h3>调色板生成</h3>
+        <div class="row">
+            <div><label>基础色</label><input id="paletteBase" value="#e74c3c" size="10"></div>
+            <div><label>数量</label><input id="paletteCount" type="number" value="6" size="4"></div>
+            <div>
+                <label>模式</label>
+                <select id="paletteMode">
+                    <option value="analogous">类似色</option>
+                    <option value="complement">互补色</option>
+                    <option value="triadic">三等分</option>
+                </select>
+            </div>
+            <button onclick="doPalette()">生成</button>
+        </div>
+        <div class="palette" id="paletteResult"></div>
+    </div>
+
+    <script>
+    async function doConvert() {
+        const color = document.getElementById('convertInput').value.trim();
+        try {
+            const resp = await fetch('/api/convert', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({color}),
+            });
+            if (!resp.ok) throw new Error(await resp.text());
+            const d = await resp.json();
+            document.getElementById('convertSwatch').style.background = d.hex;
+            document.getElementById('convertResult').innerHTML =
+                `<b>HEX:</b> ${d.hex}<br>` +
+                `<b>RGB:</b> (${d.rgb[0]}, ${d.rgb[1]}, ${d.rgb[2]})<br>` +
+                `<b>HSL:</b> (${d.hsl[0].toFixed(1)}°, ${(d.hsl[1]*100).toFixed(1)}%, ${(d.hsl[2]*100).toFixed(1)}%)<br>` +
+                `<b>Lab:</b> (${d.lab[0].toFixed(2)}, ${d.lab[1].toFixed(2)}, ${d.lab[2].toFixed(2)})<br>` +
+                `<b>LCh:</b> (${d.lch[0].toFixed(2)}, ${d.lch[1].toFixed(2)}, ${d.lch[2].toFixed(1)}°)`;
+        } catch (e) {
+            document.getElementById('convertResult').innerHTML = '<span class="error">' + e.message + '</span>';
+        }
+    }
+
+    async function doDelta() {
+        const c1 = document.getElementById('delta1').value.trim();
+        const c2 = document.getElementById('delta2').value.trim();
+        document.getElementById('deltaSwatch1').style.background = c1;
+        document.getElementById('deltaSwatch2').style.background = c2;
+        try {
+            const resp = await fetch('/api/delta', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({color1: c1, color2: c2}),
+            });
+            if (!resp.ok) throw new Error(await resp.text());
+            const d = await resp.json();
+            document.getElementById('deltaResult').innerHTML =
+                `<span class="delta-badge" style="background:#dfe6e9">ΔE76: ${d.delta_e76.toFixed(2)}</span>` +
+                `<span class="delta-badge" style="background:#dfe6e9">ΔE94: ${d.delta_e94.toFixed(2)}</span>` +
+                `<span class="delta-badge" style="background:#dfe6e9">ΔE00: ${d.delta_e00.toFixed(2)}</span>` +
+                `<span class="delta-badge" style="background:#dfe6e9">对比度: ${d.contrast_ratio.toFixed(2)}:1</span>`;
+        } catch (e) {
+            document.getElementById('deltaResult').innerHTML = '<span class="error">' + e.message + '</span>';
+        }
+    }
+
+    async function doPalette() {
+        const base = document.getElementById('paletteBase').value.trim();
+        const count = +document.getElementById('paletteCount').value;
+        const mode = document.getElementById('paletteMode').value;
+        try {
+            const resp = await fetch('/api/palette', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({base_color: base, count, mode}),
+            });
+            if (!resp.ok) throw new Error(await resp.text());
+            const d = await resp.json();
+            const container = document.getElementById('paletteResult');
+            container.innerHTML = '';
+            for (const c of d.colors) {
+                const el = document.createElement('div');
+                el.className = 'swatch';
+                el.style.background = c;
+                el.title = c;
+                container.appendChild(el);
+            }
+        } catch (e) {
+            document.getElementById('paletteResult').innerHTML = '<span class="error">' + e.message + '</span>';
+        }
+    }
+
+    // Auto-run on load.
+    doConvert();
+    </script>
+</body>
+</html>
